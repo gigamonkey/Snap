@@ -30,6 +30,15 @@ This document has two halves:
    `save(name, blob)` / `load(name)` / `list()` / `delete(name)` contract, or are we
    adapting to a fixed external API we don't control?
 
+### A Answers
+1. I'm planning to embed Snap! in my class website where I already have
+   infrastructure for saving code students write in the browser to Github. So
+   for our purposes assume I have existing Javascript code that runs in the
+   browser that can store stuff the way I want.
+2. In the class website students are OAuth logged in to Google and Github and I save
+   their work in a repo that I set up for them.
+3. I control the server so we can adapt it however we need.
+
 ### B. What should the UI look like?
 4. **Keep a project browser, or go minimal?** Two ends of a spectrum:
    - **Minimal:** just "New / Open / Save / Save As" wired to the new backend; rip out
@@ -42,6 +51,17 @@ This document has two halves:
 6. **Do you need login UI at all?** If the backend has its own auth (or none), we can
    delete the cloud login/signup/account dialogs entirely.
 
+### B Answers
+4. I think possibly both. In some context I will just want them to write some
+   Snap! in a contex I provide and then I will take care of saving it. (With my
+   Java and Javascript code I save the code to git every time they run it. But I
+   will also probably want to have something more like the current Snap! project
+   browser for more complex assignments.
+5. Sure. They will also provide a good sanity test: can we import a project that
+   was exported from regular Snap! and can regular Snap! import a project we
+   export.
+6. You can assume I have already handled logging students into my website.
+
 ### C. How "forked" do you want this?
 7. **Is this a hard fork or do you want to stay mergeable with upstream Snap!?**
    This strongly affects the approach:
@@ -53,12 +73,21 @@ This document has two halves:
    embedding Snap! inside another web app (iframe / same-page) that could pass a
    `config` object and even supply the storage adapter from outside?
 
+### C answers
+7. I definitely want to track upstream and even better, I'd like to contribute
+   changes upstream so I'm using officially supported APIs.
+8. I'm going to embed it in another web app. Using in iframe is fine as I
+   already do that for Javascript. Or same page if that's easier.
+
 ### D. Data format
 9. **Same project XML format, or a new envelope?** Snap! serializes projects to XML
    (`<project>…</project>`) plus media XML; the cloud wraps them as
    `{xml, media, thumbnail, notes, remixID}`. Easiest is to keep the exact same XML
    and just change *where the bytes go*. Any reason to change the format itself? (e.g.
    you want JSON, or you want media inline.)
+
+## D answers
+9. For now assume we're keeping the exact same XML.
 
 My **default assumptions** if you don't answer (so the plan can proceed): a single-user
 HTTP backend we control with a simple `save/load/list/delete` contract, no sharing/
