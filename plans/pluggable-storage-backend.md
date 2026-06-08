@@ -103,13 +103,22 @@ is the direction the rest of the plan now assumes:
   kind of generalization that's plausible to land upstream.)
 - **No auth / login / sharing UI inside Snap!.** Your site owns identity. We delete or
   hide the cloud login/signup/account/share UI.
-- **Two usage modes, both supported by the same seam:**
-  1. **Minimal / host-owned:** embed Snap! with the chrome hidden; your page reads the
-     project with the public API (`getProjectXML()`) on your own cadence (e.g. on run)
-     and writes it back with `loadProjectXML()`. Snap!'s own Save does nothing visible.
-  2. **In-IDE browser:** for richer assignments, keep a Snap!-style project dialog
-     (open / save / list / delete) but point it at your injected backend instead of the
-     cloud.
+- **Near-term goal is parity, not a browser.** For now you need parity with your other
+  supported languages: one project per page, **project name derived from the page and
+  stored automatically**, no "browse projects" UI. So the immediate build is just
+  *load the project on startup* + *a single Save action*. The richer "new project /
+  browse existing projects" UI is explicitly **later / optional**, not in the first cut.
+- **No save-on-run requirement.** You don't need to persist on Snap!'s green-flag run;
+  a Save button/action is enough. (Noted so we don't build a run hook we don't need.)
+  You *do* need some Save affordance — see the path below for host-side vs. in-Snap!.
+- **Two usage modes, both supported by the same seam (second one deferred):**
+  1. **Minimal / host-owned (now):** embed Snap! with the chrome hidden; your page reads
+     the project with the public API (`getProjectXML()`) and writes it back with
+     `loadProjectXML()`. Saving is triggered by a Save button (host-side, or an in-Snap!
+     Save wired to your backend under the implicit page-derived name).
+  2. **In-IDE browser (later):** for richer assignments, a Snap!-style project dialog
+     (new / open / save / list / delete) pointed at your injected backend. Deferred until
+     you actually want it.
 - **Keep local Import/Export** (also serves as the round-trip compatibility test: a
   project exported by stock Snap! must import here, and vice-versa).
 - **Same project XML format**, unchanged.
@@ -117,11 +126,10 @@ is the direction the rest of the plan now assumes:
   APIs. This makes "minimize edits to existing files; add a clean, documented extension
   point" a hard requirement, and adds an explicit *align-with-maintainers* step before
   building.
-- **Embedding:** iframe or same-page. Because you need to hand Snap! a *live JS adapter
-  object*, this works cleanly only **same-origin** (serve Snap! from your own domain, or
-  same page). A cross-origin iframe can't receive a JS object and would force a
-  `postMessage` bridge — more code and harder to standardize. **Recommendation:
-  same-origin iframe (or same page).**
+- **Embedding: same-origin, confirmed.** You'll serve Snap! yourself (maintaining your own
+  build), so the host can hand Snap! a live JS adapter object and reach the IDE directly.
+  The cross-origin `postMessage` bridge is therefore *not* needed (kept only as a footnote
+  risk in case that ever changes).
 
 This makes the recommended approach a **hybrid of Option B (a host-injectable
 `StorageBackend`) and Option C (the embedding API)** — see the revised Recommended path
@@ -268,37 +276,48 @@ host page using the documented API: `getProjectXML()` / `loadProjectXML()` /
 
 ## Recommended path (revised for your answers)
 
-Chosen approach: **a host-injectable `StorageBackend` (Option B) whose adapter is supplied
-by your embedding page, combined with the existing embedding API (Option C) for the
-minimal mode.** Built to be contributed upstream, so every phase prefers *adding a clean,
+Chosen approach: **start with the embedding API (Option C) for immediate parity, and keep
+a host-injectable `StorageBackend` (Option B) as the deferred upgrade for an in-IDE
+browser.** Built to be contributed upstream, so every phase prefers *adding a clean,
 documented extension point* over editing core flow.
 
-The phases are ordered so that the two early ones deliver your **minimal mode with zero
-core changes** — usable immediately and trivially upstream-safe — and the later ones add
-the in-IDE browser, which is where the real (contributable) refactor lives.
+The near-term scope is small: you need parity with your other languages — **one project
+per page, implicit page-derived name, load on startup, one Save action**. That is
+**Phase A below, which requires no fork of Snap!**. Phases B+ (the backend seam and the
+project browser) are explicitly **later / optional** and only worth doing once you want
+a generic new/browse UI.
 
-### Phase 0 — Embed + hide chrome, host owns saving (minimal mode, no core edits)
-Goal: a working embedded Snap! where your page does all the persistence.
-- Serve Snap! **same-origin** with your site (so you can reach the live IDE object).
-- Launch with `config` flags to strip the save/load/cloud chrome:
+### Phase A — Parity build: embed + hide chrome + load/save via the public API (NOW)
+Goal: an embedded Snap! that loads one project on startup and saves on demand, with your
+existing GitHub JS doing the persistence. **No changes to Snap! source.**
+- Serve Snap! **same-origin** from your own build (you're doing this anyway).
+- Launch with `config` flags to strip the save/load/cloud chrome, e.g.:
   `{noCloud: true, hideCloudMenu: true, noShare: true, hideProjects: true,
   noProjectItems: true, hideProjectName: true, noExitWarning: true}`
-  (tune to taste — e.g. keep `hideProjects` off if you still want Import/Export in a menu).
-- From your page, get the IDE (`iframe.contentWindow.world.children[0]`, per `docs/API.md`)
-  and drive persistence with the **public API**: read with `getProjectXML()`, write with
-  `loadProjectXML(xml)`, and use `unsavedChanges()` / `resetUnsavedChanges()` to decide when.
-- Wire your "save on run" behaviour from the host side. **Open item:** confirm whether you
-  want to save on Snap!'s green-flag run specifically — if so, we may need a small official
-  hook (an `onrun`/save callback) since the public API doesn't currently expose a run event.
-  Saving on a timer or on your own button needs no core change.
+  (keep `hideProjects`/`noProjectItems` off if you want to retain the Import/Export menu).
+- On load: your page fetches the project XML from GitHub and calls
+  `ide.loadProjectXML(xml)` (per `docs/API.md`; reach the IDE via
+  `iframe.contentWindow.world.children[0]`). The project name comes from the page, as you
+  described — set it with `ide.setProjectName(name)` if you want it reflected internally.
+- **Save action.** You need a Save affordance; two ways, pick per context:
+  - **Host-side button (simplest, zero core edit):** your page renders a Save button next
+    to the iframe → on click read `ide.getProjectXML()` → persist to GitHub. Use
+    `ide.unsavedChanges()` to enable/disable it, `resetUnsavedChanges()` after a successful
+    write. This is the recommended starting point — it matches how you save your other
+    languages today.
+  - **In-Snap! Save (a little nicer, tiny seam):** if you'd rather students use Snap!'s own
+    Save (Ctrl-S / a toolbar button), we route that single action to your backend under
+    the implicit name. That's the smallest slice of Phase B (a save callback), *without*
+    any dialog or browser. Worth it only if you want the affordance inside the canvas.
+- **No save-on-run** is built (confirmed not needed). If you ever want it, it'd be the same
+  small callback as the in-Snap! Save, triggered on the green flag.
 
-Deliverable: students can write & run Snap! embedded in your site; you persist to GitHub
+Deliverable: students write & run Snap! embedded in your site; you persist to GitHub
 exactly as you do for JS today. **No fork of Snap! source at all.**
 
-### Phase 1 — Define the `StorageBackend` contract (design + upstream alignment)
-Before writing the in-IDE browser, pin the interface and get maintainer buy-in (your
-explicit goal of contributing upstream makes this the highest-leverage step).
-- Draft the adapter contract (host implements it; defaults to today's `Cloud`):
+### Phase B — (Later) host-injectable `StorageBackend` contract + upstream alignment
+Only when you want Snap!'s own Save/Open to drive your backend (beyond the host button).
+- Draft the adapter contract (host implements it; default stays today's `Cloud`):
 
 ```
 StorageBackend
@@ -311,65 +330,62 @@ StorageBackend
   .rename(old, new) -> Promise   // optional; present only if capabilities.rename
 ```
 
-- Decide the injection mechanism that maintainers would accept — most likely a new
-  `config.storage` (an object the host passes), with `Cloud` refactored to *implement*
-  this same contract so it's a true generalization, not a parallel path.
-- **Action:** raise this on the Snap! forum / with Jens & Brian (a short design note +
-  this contract) before building, so the implementation matches what they'll merge.
+- Injection mechanism most likely a new `config.storage` (object the host passes), with
+  `Cloud` refactored to *implement* this same contract so it's a true generalization, not
+  a parallel path.
+- **Action:** raise this on the Snap! forum / with Jens & Brian (short design note + this
+  contract) *before* building, so the implementation matches what they'll merge — this is
+  the highest-leverage step for your "contribute upstream" goal.
+- Then: add `src/storage.js`, instantiate `this.storage` in `IDE_Morph.init` next to
+  `this.cloud` (defaulting to a `Cloud`-backed adapter so stock behaviour is byte-for-byte
+  unchanged), and route `save()` / `saveProjectToCloud()` / the open path through
+  `this.storage`. Keep `this.source` coherent (add a `'backend'` source); load `storage.js`
+  in `snap.html` in dependency order with a `?version=` cache-bust string.
 
-### Phase 2 — Make the IDE talk to `this.storage` instead of `this.cloud`
-- Add `src/storage.js`; instantiate `this.storage` in `IDE_Morph.init` next to `this.cloud`
-  (defaulting to a `Cloud`-backed adapter so stock behaviour is byte-for-byte unchanged).
-- Route `save()` / `saveProjectToCloud()` and the open/list/delete paths through
-  `this.storage`. Keep `this.source`'s state machine coherent (add a `'backend'` source);
-  leave disk Import/Export untouched.
-- Load `storage.js` in `snap.html` in dependency order, with a `?version=` cache-bust string.
-
-### Phase 3 — In-IDE project browser pointed at the injected backend
+### Phase C — (Later / optional) in-IDE project browser pointed at the backend
+The generic "new project / browse existing projects" UI you mentioned wanting eventually.
 - Adapt `ProjectDialogMorph` so its "cloud" source becomes "the active backend," rendering
-  the list from `storage.list()` and gating capability-specific UI on `capabilities`
-  (so share/publish/auth simply don't appear for your backend).
-- Remove the now-dead login/signup/account dialogs from this build (you confirmed no
-  in-Snap! login is needed).
+  the list from `storage.list()` and gating capability UI on `capabilities` (share/
+  publish/auth simply don't appear). Remove the now-dead login/signup/account dialogs.
+- This is the most entangled work; defer until the browser is actually needed.
 
-### Phase 4 — Compatibility test + polish
+### Cross-cutting — compatibility test + polish (applies whenever you ship a build)
 - **Round-trip test (your suggested sanity check):** export a project from stock Snap!,
-  import it here; export from here, import into stock Snap!. Must be lossless — this is the
-  acceptance test for "same XML format."
-- Verify unsaved-changes/backup (`recordSavedChanges`, `-snap-backup-*`) still behaves —
-  it's backend-agnostic but worth confirming with the new save path.
+  import it here; export from here, import into stock Snap!. Must be lossless — the
+  acceptance test for "same XML format." Useful from Phase A onward since Import/Export stays.
+- Verify unsaved-changes/backup (`recordSavedChanges`, `-snap-backup-*`) behaves with the
+  save path you choose.
 - Update `HISTORY.md`; if you cut a build, bump the version triple (`SnapVersion` in
   `gui.js`, `snapVersion` in `sw.js`, `?version=` strings in `snap.html`) per `CLAUDE.md`.
 
 ### Risks / watch-outs
-- **Cross-origin embedding breaks object injection.** Handing Snap! a live adapter object
-  (and reaching `contentWindow.world…`) requires same-origin. If Snap! must be served
-  cross-origin, we'd need a `postMessage` storage bridge — more work; flag early.
-- `ProjectDialogMorph` is the most entangled piece (multi-source tabs, thumbnails,
-  remix/share). Phase 3 is where most effort/risk lives; Phases 0–2 deliver value without it.
 - The `file:` protocol special-case in `save()` (`gui.js:6125`) overrides everything —
-  test over HTTP (`python3 -m http.server`), not by opening `snap.html` directly.
+  test over HTTP (`python3 -m http.server`), not by opening `snap.html` directly. (Even in
+  Phase A this matters if you ever exercise Snap!'s own Save.)
+- For Phase C, `ProjectDialogMorph` is the entangled piece (multi-source tabs, thumbnails,
+  remix/share) — Phases A–B deliver value without touching it.
 - `this.source` is referenced across `gui.js` (`5943, 6148, 7925, 9325, 10128, 10174,
-  10178, 10545`) — keep it consistent when adding the backend source.
-- **Upstream acceptance is not guaranteed.** Phase 1 alignment de-risks this, but plan for
-  the possibility of carrying the `storage.js` seam as a thin local patch if a PR stalls.
+  10178, 10545`) — keep it consistent if/when you add the backend source in Phase B.
+- **Upstream acceptance isn't guaranteed.** Phase B's alignment step de-risks this; plan to
+  carry the `storage.js` seam as a thin local patch if a PR stalls. (Phase A needs no PR.)
+- *Footnote:* if Snap! ever has to be served cross-origin, the live-object injection in
+  Phase B/C won't work and we'd need a `postMessage` bridge. Not a concern given same-origin.
 
 ### Open items still worth confirming
-- **Save-on-run hook:** do you specifically need to persist on the green-flag run? If yes,
-  we likely add a small official callback (Phase 0 open item).
-- **Same-origin hosting:** can you serve Snap! from your own domain (or same page)? If not,
-  we switch to the `postMessage` bridge variant.
-- **List metadata:** what does your GitHub-backed `list()` return cheaply (names only? dates?
-  thumbnails)? This sets how rich the Phase 3 browser can be without extra round-trips.
+- **Where the Save button lives:** host-side button (recommended for parity, zero core
+  edit) vs. an in-Snap! Save wired to your backend (tiny seam). Phase A works either way;
+  this just decides whether we touch Snap! source at all in the first cut.
+- **List metadata (only matters at Phase C):** what your GitHub-backed `list()` can return
+  cheaply (names only? dates? thumbnails?) sets how rich the browser can be.
 
 ---
 
 ## TL;DR
-Your case is **embed Snap! in your site, hide its save/load chrome, and let your existing
-GitHub-saving JS be the backend — using official, upstream-friendly APIs.** Good news:
-**Phases 0–1 give you the minimal mode with no fork at all** (config flags +
-`getProjectXML`/`loadProjectXML`), so you can be running embedded immediately. The fuller
-in-IDE project browser needs a real but contained change — a host-injectable
-`StorageBackend` that generalizes today's `Cloud` — which we should socialize with the
-maintainers (Phase 1) before building so it can land upstream. Keep everything same-origin,
-keep the XML format, keep Import/Export as the round-trip compatibility test.
+Your near-term need is **parity**: embed Snap! same-origin in your site, hide its save/load
+chrome with `config` flags, load one page-named project on startup with `loadProjectXML`,
+and save on demand with `getProjectXML` driven by a **host-side Save button** — your
+existing GitHub JS does the persistence. **That's Phase A and needs no fork at all.**
+Optional later work: a small host-injectable `StorageBackend` (Phase B, socialize with the
+maintainers first so it lands upstream) if you want Snap!'s own Save to hit your backend,
+and an in-IDE project browser (Phase C) if/when you want generic new/browse UI. Keep the
+XML format and keep Import/Export as the round-trip compatibility test.
