@@ -1,0 +1,52 @@
+# check=skip=InvalidDefaultArgInFrom
+# ^ Keep on line 1. Silences a harmless BuildKit lint warning: YOLO_BASE has no
+#   default because yolo always injects the base-image tag as a build arg, but the
+#   linter evaluates `FROM ${YOLO_BASE}` with the empty default and flags it.
+#
+# Custom yolo Dockerfile for the Snap! tree: yolo's default image plus a
+# headless browser for driving the real IDE in tests.
+#
+#   yolo config --dockerfile ./Dockerfile.yolo   # persist it for this project
+#   yolo --dockerfile ./Dockerfile.yolo          # ...or just for one run
+#
+# yolo builds the image on the HOST, so an edit here takes effect on the NEXT
+# `yolo` launch. `yolo dockerfile` prints the default image this inherits from.
+
+ARG YOLO_BASE
+FROM ${YOLO_BASE}
+
+# --- Playwright + Chromium ---------------------------------------------------
+# Snap! is a Morphic canvas app, so the only way to test drag-and-drop, keyboard
+# entry, palette search etc. for real is to drive the browser. Playwright is
+# installed globally and its browsers go in a fixed system path, so a test
+# script can `require('playwright')` from any directory (NODE_PATH) and find
+# Chromium without a per-session `npm install` / `playwright install`.
+#
+# Keep the version pinned: the browser build must match the library version.
+# To bump, change both PLAYWRIGHT_VERSION and nothing else; `playwright install`
+# fetches the matching Chromium.
+ARG PLAYWRIGHT_VERSION=1.63.0
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+ENV NODE_PATH=/usr/lib/node_modules
+
+# The browser download runs as `claude` (sudo resets the environment, so it
+# would ignore PLAYWRIGHT_BROWSERS_PATH and stash the browsers under /root);
+# only the apt step for Chromium's shared libraries needs root.
+RUN sudo npm install -g playwright@${PLAYWRIGHT_VERSION} \
+    && sudo mkdir -p ${PLAYWRIGHT_BROWSERS_PATH} \
+    && sudo chown claude ${PLAYWRIGHT_BROWSERS_PATH} \
+    && npx playwright install chromium \
+    && sudo npx playwright install-deps chromium \
+    && sudo rm -rf /var/lib/apt/lists/*
+
+# Usage from a test script (no package.json needed):
+#
+#   const { chromium } = require('playwright');
+#   const browser = await chromium.launch();
+#
+# Serve the tree with `python3 -m http.server 8765 --bind 0.0.0.0` and point the
+# page at http://localhost:8765/snap.html; wait for `window.world` and the IDE
+# (`world.children[0].currentSprite`) before poking at morphs.
+
+# --- keep this last ---------------------------------------------------------
+USER claude
