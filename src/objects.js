@@ -96,7 +96,7 @@ CustomBlockDefinition, exportEmbroidery, CustomHatBlockMorph, HandMorph*/
 
 /*jshint esversion: 11*/
 
-modules.objects = '2026-August-27';
+modules.objects = '2026-October-01';
 
 var SpriteMorph;
 var StageMorph;
@@ -3271,6 +3271,7 @@ SpriteMorph.prototype.init = function (globals) {
     this.isTemporary = false; // indicate a temporary Scratch-style clone
     this.isCorpse = false; // indicate whether a sprite/clone has been deleted
     this.cloneOriginName = '';
+    this.isHiddenInCorral = false;
 
     // volume and stereo-pan support
     this.volume = 100;
@@ -5961,7 +5962,7 @@ SpriteMorph.prototype.userMenu = function () {
                 'make permanent and\nshow in the sprite corral'
             );
         }
-    } else {
+    } else if (!this.isHiddenInCorral) {
         menu.addItem("edit", 'edit');
     }
     menu.addLine();
@@ -8727,6 +8728,9 @@ SpriteMorph.prototype.allHatBlocksForKey = function (key) {
 };
 
 SpriteMorph.prototype.allHatBlocksForInteraction = function (interaction) {
+    if (interaction === 'init') {
+        return this.allHatBlocksFor('__init__');
+    }
     return this.scripts.children.filter(morph => {
         if (morph.selector) {
             if (morph.selector === 'receiveInteraction') {
@@ -8833,7 +8837,7 @@ SpriteMorph.prototype.receiveUserInteraction = function (
 };
 
 SpriteMorph.prototype.mouseDoubleClick = function () {
-    if (this.isTemporary) {return; }
+    if (this.isTemporary || this.isHiddenInCorral) {return; }
     this.edit();
 };
 
@@ -11594,6 +11598,7 @@ StageMorph.prototype.fireGreenFlagEvent = function () {
         ide = this.parentThatIsA(IDE_Morph);
 
     this.removeAllClones();
+    this.runInitScripts();
     this.children.concat(this).forEach(morph => {
         if (isSnapObject(morph)) {
             morph.allHatBlocksFor('__shout__go__').forEach(block => {
@@ -11634,6 +11639,18 @@ StageMorph.prototype.runStopScripts = function () {
     this.children.forEach(morph => {
         if (morph instanceof SpriteMorph) {
             morph.receiveUserInteraction('stopped', true, true);
+        }
+    });
+};
+
+StageMorph.prototype.runInitScripts = function () {
+    // Allow each sprite to run one first step before sending the
+    // green flag event.
+    // usage example: reset the sprite to its original state
+    this.receiveUserInteraction('init', true, true);
+    this.children.forEach(morph => {
+        if (morph instanceof SpriteMorph) {
+            morph.receiveUserInteraction('init', true, true);
         }
     });
 };

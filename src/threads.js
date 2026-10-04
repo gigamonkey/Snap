@@ -66,7 +66,7 @@ CustomHatBlockMorph, SymbolMorph, MenuMorph, MorphicPreferences*/
 
 /*jshint esversion: 11, bitwise: false, evil: true*/
 
-modules.threads = '2026-August-23';
+modules.threads = '2026-October-01';
 
 var ThreadManager;
 var Process;
@@ -7618,6 +7618,7 @@ Process.prototype.reportGet = function (query) {
             );
         case 'processes':
             stage = thisObj.parentThatIsA(StageMorph);
+            stage.threads.removeTerminatedProcesses();
             return new List(stage ? stage.threads.processes : []);
         case 'solutions':
             if (thisObj.solution) {
@@ -8582,8 +8583,11 @@ Process.prototype.returnValueToParentContext = function (value) {
         ) {
             let anchor = this.context.expression;
             if (!anchor.world()) {
-                // find a place to display the result of custon reporters
-                anchor = this.topBlock;
+                // find a place to display the result of custom reporters
+                anchor = target.expression;
+                if (!anchor.world || !anchor.world()) {
+                    return;
+                }
             }
             if (value instanceof List) {
                 anchor.showBubble(

@@ -2,6 +2,64 @@
 
 ## in development:
 
+## 12.2.2:
+* **Notable Changes:**
+    * tables ADT library: added "export" option to tables' context menus
+    * neural networks & plot bars libraries: updated the "plot bars" command - removed input type enforcing
+* **Translation Updates:**
+    * German
+
+### 2026-10-02
+* tables: added "export" option to table's context menus (for table ADTs)
+* neural networks library: updated the "plot bars" command - removed input type enforcing
+* plot bars library: updated the "plot bars" command - removed input type enforcing
+* German translation update, changed translation of dimensions that can also be used for directions ("left", "top")
+* prepared v12.2.2 patch
+
+## 12.2.1:
+* no notables changes
+* no fixes
+* just some extension tweaks for evil educators with no courage or imagination
+
+### 2026-10-01
+* extension tweaks for evil educators with no courage or imagination
+
+## 12.2.0:
+* **New Features:**
+    * ability to hide sprites in the corral via the corral-bar's context menu, use for pedagogical puzzles
+* **Translation Updates:**
+    * German
+
+### 2026-09-22
+* objects, gui, store: added ability to hide sprites in the corral via the corral-bar's context menu, use for pedagogical puzzles
+* incremented dev version to v12.2
+* prepared v12.2 release
+
+### 2026-09-21
+* German translation update
+* new dev version
+
+## 12.1.3:
+* **Notable Fixes:**
+    * fixed a visible stepping glitch when displaying intermediate custom reporter results
+
+### 2026-09-10
+* threads: fixed a visible stepping glitch when displaying intermediate custom reporter results
+* prepared v12.1.3 patch
+
+## 12.1.2:
+* **Notable Fixes:**
+    * fixed dropdown menu of the "overlay" block's y-place slot in the shapes library
+    * cleaned up the costumes folder
+
+### 2026-09-10
+* cleaned up costumes
+* prepared v12.1.2 patch
+
+### 2026-09-09
+* fixed #3572
+* shapes library: added type field to rounded rectangles
+
 ## 12.1.1:
 * **New Features:**
     * added 'scn_label(txt)' extension for programmatically setting the label of a tutorial window"
