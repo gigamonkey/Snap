@@ -164,7 +164,7 @@ CustomHatBlockMorph, GrayPaletteMorph, ZOOM*/
 
 // Global stuff ////////////////////////////////////////////////////////
 
-modules.blocks = '2026-August-23';
+modules.blocks = '2026-October-17';
 
 var SyntaxElementMorph;
 var BlockMorph;
@@ -6760,7 +6760,7 @@ CommandBlockMorph.prototype.bottomAttachPoint = function () {
 };
 
 CommandBlockMorph.prototype.wrapAttachPoint = function () {
-    var cslot = detect( // could be a method making uses of caching...
+    var cslot = detect( // could be a method making use of caching...
         this.inputs(), // ... although these already are cached
         each => each instanceof CSlotMorph
     );
@@ -6948,11 +6948,17 @@ CommandBlockMorph.prototype.snap = function (hand) {
             }
         }
     } else if (target.loc === 'top') {
-        target.element.removeHighlight();
-        offsetY = this.bottomBlock().bottom() - this.bottom();
-        this.setBottom(target.element.top() + this.corner - offsetY);
-        this.setLeft(target.element.left());
-        this.bottomBlock().nextBlock(target.element);
+        if (target.type === 'slot') {
+            this.removeHighlight();
+            scripts.lastNextBlock = target.element.nestedBlock();
+            target.element.nestedBlock(this);
+        } else {
+            target.element.removeHighlight();
+            offsetY = this.bottomBlock().bottom() - this.bottom();
+            this.setBottom(target.element.top() + this.corner - offsetY);
+            this.setLeft(target.element.left());
+            this.bottomBlock().nextBlock(target.element);
+        }
     } else if (target.loc === 'wrap') {
         cslot = detect( // this should be a method making use of caching
             this.inputs(), // these are already cached, so maybe it's okay
@@ -8654,12 +8660,18 @@ RingMorph.prototype.vanishForSimilar = function () {
     */
     if ((block.selector === 'reportGetVar' &&
             !contains(this.inputNames(), block.blockSpec)) ||
-        // block.selector === 'reportListItem' ||
-        block.selector === 'reportJSFunction' ||
-        block.selector === 'reportAttributeOf' ||
-        block.selector === 'reportCompiled' ||
-        block.selector === 'reportThisContext' ||
-        (block instanceof RingMorph)
+        [   // 'reportListItem',
+            'reportAttributeOf',
+            'reportEnvironment'
+        ].includes(block.selector) ||
+        (block instanceof RingMorph) ||
+        [
+            'command',
+            'reporter',
+            'predicate',
+            'hat',
+            'script'
+        ].includes(block.reports)
     ) {
         this.parent.replaceInput(this, block);
     }
@@ -9533,7 +9545,9 @@ ScriptsMorph.prototype.recoverLastDrop = function (forRedrop) {
                     }
                 }
             } else if (rec.lastDropTarget.loc === 'top') {
-                this.add(rec.lastDropTarget.element);
+                if (rec.lastDropTarget.type !== 'slot') {
+                    this.add(rec.lastDropTarget.element);
+                }
             } else if (rec.lastDropTarget.loc === 'wrap') {
                 var cslot = detect( // could be cached...
                     rec.lastDroppedBlock.inputs(), // ...although these are
@@ -11047,6 +11061,21 @@ RingCommandSlotMorph.prototype.getSpec = function () {
     return '%rc';
 };
 
+RingCommandSlotMorph.prototype.attachTargets = function () {
+    var answer;
+    if (this.nestedBlock() instanceof HatBlockMorph) {
+        return [];
+    }
+    answer = RingCommandSlotMorph.uber.attachTargets.call(this);
+    answer.push({
+        point: this.slotAttachPoint(),
+        element: this,
+        loc: 'top',
+        type: 'slot'
+    });
+    return answer;
+};
+
 // RingCommandSlotMorph drawing:
 
 RingCommandSlotMorph.prototype.render = function (ctx) {
@@ -11229,6 +11258,67 @@ CSlotMorph.prototype.elementsAtLOC = function (definitions) {
         }
     });
     return elementLOC;
+};
+
+// CSlotMorph dynamic contents:
+
+CSlotMorph.prototype.dynamicContents = function () {
+    if (this.isUnevaluated) {return; }
+    var block = this.parentThatIsA(BlockMorph),
+        rcvr = block.scriptTarget(),
+        def = block.isGlobal ? block.definition
+            : rcvr.getMethod(block.blockSpec),
+        names = def.inputNames(),
+        inputName = names[block.inputs().indexOf(this.parent)], // multi-slot
+        script = detect(def.scripts, each =>
+            each.selector === 'receiveSlotEvent' &&
+                each.inputs()[0].evaluate() === inputName &&
+                each.inputs()[1].evaluateOption() === 'expand'),
+        stage = rcvr.parentThatIsA(StageMorph),
+        isTxtOrNum = dta => isString(dta) ||
+            (dta instanceof Array && isString(dta[0])) ||
+            parseFloat(dta) === +dta,
+        vars, fill;
+
+    fill = (result = new List()) => {
+        if (this instanceof BooleanSlotMorph &&
+            [true, false, null].includes(result)
+        ) {
+            this.setContents(result);
+        } else if (this instanceof ColorSlotMorph && result instanceof Color) {
+            this.setContents(result);
+        } else if (this instanceof CSlotMorph && result instanceof Context) {
+            if (result.expression instanceof CommandBlockMorph &&
+                !(result.expression instanceof HatBlockMorph)
+            ) {
+                this.nestedBlock(result.expression.fullCopy());
+            }
+        } else if (isTxtOrNum(result)) {
+            this.setContents(isString(result) && result.startsWith('$_') ?
+                [result.slice(2)] : result);
+        }
+    };
+
+    if (!script) {return; }
+
+    // fully evaluate the block's inputs, including embedded reporters, if any
+    vars = new InputList(block, names);
+
+    // evaluate the script that reports the dynamic content
+    stage.threads.startProcess(
+        script,
+        rcvr,
+        null, // threadsafe
+        null, // export result
+        fill, // callback
+        null, // clicked
+        true, // right away
+        null, // atomic
+        vars,
+        null,
+        null,
+        true // silent variable reference - dynamic user-scripted widgets
+    );
 };
 
 // CSlotMorph layout:
@@ -12098,58 +12188,8 @@ InputSlotMorph.prototype.dynamicMenu = function (searching, enableKeyboard) {
     );
 };
 
-InputSlotMorph.prototype.dynamicContents = function () {
-    if (this.isUnevaluated) {return; }
-    var block = this.parentThatIsA(BlockMorph),
-        rcvr = block.scriptTarget(),
-        def = block.isGlobal ? block.definition
-            : rcvr.getMethod(block.blockSpec),
-        names = def.inputNames(),
-        inputName = names[block.inputs().indexOf(this.parent)], // multi-slot
-        script = detect(def.scripts, each =>
-            each.selector === 'receiveSlotEvent' &&
-                each.inputs()[0].evaluate() === inputName &&
-                each.inputs()[1].evaluateOption() === 'expand'),
-        stage = rcvr.parentThatIsA(StageMorph),
-        isTxtOrNum = dta => isString(dta) ||
-            (dta instanceof Array && isString(dta[0])) ||
-            parseFloat(dta) === +dta,
-        vars, fill;
-
-    fill = (result = new List()) => {
-        if (this instanceof BooleanSlotMorph &&
-            [true, false, null].includes(result)
-        ) {
-            this.setContents(result);
-        } else if (this instanceof ColorSlotMorph && result instanceof Color) {
-            this.setContents(result);
-        } else if (isTxtOrNum(result)) {
-            this.setContents(isString(result) && result.startsWith('$_') ?
-                [result.slice(2)] : result);
-        }
-    };
-
-    if (!script) {return; }
-
-    // fully evaluate the block's inputs, including embedded reporters, if any
-    vars = new InputList(block, names);
-
-    // evaluate the script that reports the dynamic content
-    stage.threads.startProcess(
-        script,
-        rcvr,
-        null, // threadsafe
-        null, // export result
-        fill, // callback
-        null, // clicked
-        true, // right away
-        null, // atomic
-        vars,
-        null,
-        null,
-        true // silent variable reference - dynamic user-scripted widgets
-    );
-};
+InputSlotMorph.prototype.dynamicContents =
+    CSlotMorph.prototype.dynamicContents;
 
 InputSlotMorph.prototype.menuSelectorsMenu = function () {
     var blockEditor = this.parentThatIsA(BlockEditorMorph),
@@ -16573,7 +16613,7 @@ RingReporterSlotMorph.prototype.attachTargets = function () {
         // don't let commands "kick out" embedded reporters
         return [];
     }
-    return CommandSlotMorph.prototype.attachTargets.call(this);
+    return RingCommandSlotMorph.prototype.attachTargets.call(this);
 };
 
 // RingReporterSlotMorph nesting for commands:

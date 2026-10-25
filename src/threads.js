@@ -62,11 +62,12 @@ isNil, WatcherMorph, List, ListWatcherMorph, alert, console, TableMorph, BLACK,
 TableFrameMorph, ColorSlotMorph, isSnapObject, newCanvas, Symbol, SVG_Costume,
 SnapExtensions, AlignmentMorph, TextMorph, Cloud, HatBlockMorph, InputSlotMorph,
 StagePickerMorph, CustomBlockDefinition, CommentMorph, BooleanSlotMorph, Color,
-CustomHatBlockMorph, SymbolMorph, MenuMorph, MorphicPreferences*/
+CustomHatBlockMorph, SymbolMorph, MenuMorph, MorphicPreferences,
+SpeechBubbleMorph*/
 
 /*jshint esversion: 11, bitwise: false, evil: true*/
 
-modules.threads = '2026-October-01';
+modules.threads = '2026-October-23';
 
 var ThreadManager;
 var Process;
@@ -5119,6 +5120,9 @@ Process.prototype.reportTypeOf = function (thing) {
         return 'text';
     }
     if (thing instanceof SpriteMorph) {
+        if (thing.isCorpse) {
+            return 'corpse';
+        }
         return 'sprite';
     }
     if (thing instanceof StageMorph) {
@@ -6317,6 +6321,30 @@ Process.prototype.toInputTextSyntax = function (list) {
 };
 
 // Process debugging
+
+Process.prototype.bubbleADT = function () {
+    // private / helper - display intermediate ADT results
+    // for visible steppingvinside a speech balloon
+    var anchor = this.context.inputs[0],
+        readout = this.context.inputs[1],
+        bubble;
+    if (readout instanceof Morph) {
+        bubble = new SpeechBubbleMorph(
+            readout,
+            null,
+            null,
+            0
+        );
+        bubble.popUp(
+            anchor.world(),
+            anchor.rightCenter(),
+            false // isClickable
+        );
+    } else {
+        anchor.showBubble(readout);
+    }
+    this.popContext();
+};
 
 Process.prototype.alert = function (data) {
     // debugging primitives only work in dev mode, otherwise they're nop
@@ -8417,6 +8445,12 @@ Process.prototype.costumeNamed = function (name) {
     if (name instanceof Costume) {
         return name;
     }
+    if (name instanceof Context) {
+        name = name.toBlock();
+    }
+    if (name instanceof BlockMorph) {
+        return new Costume(name.scriptPic(), localize('block'));
+    }
     if (typeof name === 'number') {
         return this.blockReceiver().costumes.at(name);
     }
@@ -8585,18 +8619,29 @@ Process.prototype.returnValueToParentContext = function (value) {
             if (!anchor.world()) {
                 // find a place to display the result of custom reporters
                 anchor = target.expression;
-                if (!anchor.world || !anchor.world()) {
+                if (!anchor || !anchor.world || !anchor.world()) {
                     return;
                 }
             }
             if (value instanceof List) {
-                anchor.showBubble(
-                    value.isTable() ?
-                        new TableFrameMorph(new TableMorph(value))
-                        : new ListWatcherMorph(value),
-                    this.exportResult,
-                    this.receiver
-                );
+                if (value.isADT()) {
+                    // compute the ADT's dynamic view
+                    this.popContext();
+                    this.pushContext('bubbleADT');
+                    this.context.addInput(anchor);
+                    this.pushContext();
+                    this.evaluate(
+                        this.reportListItem('_morph', value)
+                    );
+                } else {
+                    anchor.showBubble(
+                        value.isTable() ?
+                            new TableFrameMorph(new TableMorph(value))
+                            : new ListWatcherMorph(value),
+                        this.exportResult,
+                        this.receiver
+                    );
+                }
             } else {
                 anchor.showBubble(
                     value,
@@ -10710,7 +10755,12 @@ VariableFrame.prototype.fork = function (names = []) {
     // answer a copy that only has entries for the given array of variable names
     // and only has values for primitive data.
     // used for including data dependencies in libraries.
-    var frame = new VariableFrame();
+    //
+    // Note: costumes and sounds can - currently - only be referenced directly
+    // by a dependent variable, not as part of a data structure (list) assigned
+    // to it, for reasons of data bloat in libraries.
+    var frame = new VariableFrame(),
+        types = ['text', 'number', 'Boolean', 'costume', 'sound'];
     this.names(true).forEach(vName => {
         var v, val, typ;
         if (names.includes(vName)) {
@@ -10719,7 +10769,7 @@ VariableFrame.prototype.fork = function (names = []) {
                 val = '';
             } else {
                 typ = Process.prototype.reportTypeOf(v.value);
-                if (['text', 'number', 'Boolean'].includes(typ) ||
+                if (types.includes(typ) ||
                     (v.value instanceof List &&
                         (v.value.canBeCSV() || v.value.canBeJSON()))
                 ) {

@@ -54,7 +54,7 @@ ScriptsMorph*/
 
 // Global stuff ////////////////////////////////////////////////////////
 
-modules.scenes = '2026-May-19';
+modules.scenes = '2026-October-16';
 
 // Projecct /////////////////////////////////////////////////////////
 
@@ -129,19 +129,10 @@ function Scene(aStageMorph) {
     this.role = null; // null (default), "template" or "tutorial"
     this.createdFromTemplate = false;
     this.hideSprites = false;
+    this.isHiddenInCorral = false;
 
     // template settings
-    this.template = {
-        name: null,
-        version: null,
-        hide: null,
-        lang: undefined,
-        zoom: undefined,
-        scale: undefined,
-        fade: undefined,
-        flat: undefined,
-        bright: undefined
-    };
+    this.template = this.freshTemplate();
 
     // cached IDE state
     this.sprites = new List();
@@ -193,6 +184,25 @@ Scene.prototype.initialize = function () {
             this.stage;
     }
     return this;
+};
+
+Scene.prototype.freshTemplate = function () {
+    return {
+        name: null,
+        version: null,
+        hide: null,
+        tutor: undefined,
+        lang: undefined,
+        zoom: undefined,
+        scale: undefined,
+        fade: undefined,
+        flat: undefined,
+        bright: undefined
+    };
+};
+
+Scene.prototype.refreshTemplate = function () {
+    this.template = this.freshTemplate();
 };
 
 Scene.prototype.addDefaultSprite = function () {
@@ -252,8 +262,15 @@ Scene.prototype.applyGlobalSettings = function () {
 // Scene embedded template settings
 
 Scene.prototype.hasEmbeddedTemplateSettings = function () {
-    return ['lang', 'zoom', 'scale', 'fade', 'flat', 'bright'].some(any =>
-        this.template[any] !== undefined);
+    return [
+        'tutor',
+        'lang',
+        'zoom',
+        'scale',
+        'fade',
+        'flat',
+        'bright'
+    ].some(any => this.template[any] !== undefined);
 };
 
 // Scene ops:

@@ -43,7 +43,7 @@
 
 // Global stuff ////////////////////////////////////////////////////////
 
-modules.symbols = '2026-August-24';
+modules.symbols = '2026-October-19';
 
 var SymbolMorph;
 
@@ -163,7 +163,11 @@ SymbolMorph.prototype.names = [
     'cubeSolid',
     'blocks',
     'speaker',
-    'infinity'
+    'picture',
+    'shirt',
+    'microphone',
+    'infinity',
+    'blank'
 ];
 
 // SymbolMorph instance creation:
@@ -560,8 +564,19 @@ SymbolMorph.prototype.renderShape = function (ctx, aColor) {
     case 'speaker':
         this.renderSymbolSpeaker(ctx, aColor);
         break;
+    case 'picture':
+        this.renderSymbolPicture(ctx, aColor);
+        break;
+    case 'shirt':
+        this.renderSymbolShirt(ctx, aColor);
+        break;
+    case 'microphone':
+        this.renderSymbolMicrophone(ctx, aColor);
+        break;
     case 'infinity':
         this.renderSymbolInfinity(ctx, aColor);
+        break;
+    case 'blank':
         break;
     default:
         throw new Error('unknown symbol name: "' + this.name + '"');
@@ -583,6 +598,8 @@ SymbolMorph.prototype.symbolWidth = function () {
         return size * 0.5;
     case 'location':
         return size * 0.6;
+    case 'microphone':
+        return size * 0.7;
     case 'flash':
     case 'file':
     case 'list':
@@ -594,6 +611,7 @@ SymbolMorph.prototype.symbolWidth = function () {
     case 'turtlePlus':
     case 'turtleOutline':
     case 'stage':
+    case 'picture':
         return size * 1.3;
     case 'cloud':
     case 'cloudGradient':
@@ -2832,6 +2850,121 @@ SymbolMorph.prototype.renderPlus = function (
     ctx.moveTo(lt, y_middle);
     ctx.lineTo(rt, y_middle);
     ctx.stroke();
+};
+
+SymbolMorph.prototype.renderSymbolPicture = function (ctx, color) {
+    // draw a photo symbol with hills and the sun
+    var w = this.symbolWidth(),
+        h = this.size,
+        l = Math.max(w / 20, 0.5);
+
+    // frame
+    ctx.strokeStyle = color.toString();
+    ctx.fillStyle = color.toString();
+    ctx.lineWidth = l * 2;
+    ctx.strokeRect(0, 0, w, h);
+
+    // hills
+    ctx.lineWidth = l;
+    ctx.beginPath();
+    ctx.moveTo(0, h * 0.85);
+    ctx.lineTo(w * 0.2, h * 0.6);
+    ctx.lineTo(w * 0.4, h * 0.8);
+    ctx.lineTo(w * 0.75, h * 0.35);
+    ctx.lineTo(w, h * 0.65);
+    ctx.lineTo(w, h);
+    ctx.lineTo(0, h);
+    ctx.closePath();
+    ctx.fill();
+
+    // sun
+    ctx.beginPath();
+    ctx.arc(w * 0.4, h * 0.4, l * 2, radians(0), radians(360), false);
+    ctx.fill();
+};
+
+SymbolMorph.prototype.renderSymbolShirt = function (ctx, color) {
+    // draw a t-shirt symbol
+    var w = this.symbolWidth(),
+        h = this.size,
+        l = Math.max(w / 30, 0.2);
+
+    ctx.strokeStyle = color.toString();
+    ctx.fillStyle = color.toString();
+    ctx.lineWidth = l;
+
+    ctx.beginPath();
+    ctx.moveTo(0, h * 0.2);
+    ctx.lineTo(w * 0.15, h * 0.05);
+    ctx.lineTo(w * 0.3, 0);
+
+    ctx.lineTo(w * 0.4, h * 0.15);
+    ctx.lineTo(w * 0.5, h * 0.175);
+    ctx.lineTo(w * 0.6, h * 0.15);
+
+    ctx.lineTo(w * 0.7, 0);
+    ctx.lineTo(w * 0.85, h * 0.05);
+    ctx.lineTo(w, h * 0.2);
+    
+    ctx.lineTo(w * 0.95, h * 0.5);
+    ctx.lineTo(w * 0.8, h * 0.45);
+    ctx.lineTo(w * 0.8, h);
+
+    ctx.lineTo(w * 0.2, h);
+    ctx.lineTo(w * 0.2, h * 0.45);
+    ctx.lineTo(w * 0.05, h * 0.5);
+
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(w * 0.3, 0);
+
+    ctx.lineTo(w * 0.4, h * 0.05);
+    ctx.lineTo(w * 0.5, h * 0.065);
+    ctx.lineTo(w * 0.6, h * 0.05);
+
+    ctx.lineTo(w * 0.7, 0);
+
+    ctx.stroke();
+};
+
+SymbolMorph.prototype.renderSymbolMicrophone = function (ctx, color) {
+    // draw a microphone symbol
+    var w = this.symbolWidth(),
+        h = this.size,
+        l = Math.max(w / 8, 1),
+        r = w / 2,
+        r2 = r - l * 1;
+
+    ctx.strokeStyle = color.toString();
+    ctx.fillStyle = color.toString();
+    ctx.lineWidth = l;
+    ctx.lineCap = 'round';
+
+    // cradle
+    ctx.beginPath();
+    ctx.arc(r, h - w * 0.75, r - l / 2, radians(0), radians(180), false);
+    ctx.stroke();
+
+    // stand
+    ctx.beginPath();
+    ctx.moveTo(r, h - w * 0.25);
+    ctx.lineTo(r, h);
+    ctx.moveTo(w * 0.2, h - l / 2);
+    ctx.lineTo(w * 0.8, h - l / 2);
+    ctx.stroke();
+
+    // body
+    ctx.beginPath();
+
+    // bottom
+    ctx.arc(r, h - w * 0.75, r2 - l / 2, radians(0), radians(180), false);
+
+    // top
+    ctx.arc(r, r2 - l / 2, r2 - l / 2, radians(180), radians(0), false);
+    ctx.closePath();
+    ctx.fill();
 };
 
 /*

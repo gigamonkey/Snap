@@ -96,7 +96,7 @@ CustomBlockDefinition, exportEmbroidery, CustomHatBlockMorph, HandMorph*/
 
 /*jshint esversion: 11*/
 
-modules.objects = '2026-October-01';
+modules.objects = '2026-October-21';
 
 var SpriteMorph;
 var StageMorph;
@@ -2018,6 +2018,7 @@ SpriteMorph.prototype.primitiveBlocks = function () {
         },
         reportJSFunction: {
             type: 'reporter',
+            reports: 'reporter',
             category: 'operators',
             spec: 'JavaScript function ( %mult%s ) { %code }',
             code: 'js'
@@ -2041,6 +2042,7 @@ SpriteMorph.prototype.primitiveBlocks = function () {
         reportCompiled: { // experimental
             dev: true,
             type: 'reporter',
+            reports: 'reporter',
             category: 'operators',
             spec: 'compile %repRing for %n args',
             defaults: [null, 0]
@@ -6177,18 +6179,22 @@ SpriteMorph.prototype.newClone = function (immediately) {
 };
 
 SpriteMorph.prototype.newTurtleSprite = function () {
-    var ide = this.parentThatIsA(IDE_Morph),
+    var stage = this.parentThatIsA(StageMorph),
+        ide,
         sprite;
     if (this.isCorpse) {
         throw new Error('cannot operate on a deleted sprite');
     }
-    if (ide.stage && ide.stage.cloneCount <= 5000) {
-        sprite = new SpriteMorph(ide.globalVariables);
+    if (stage && stage.cloneCount <= 5000) {
+        sprite = new SpriteMorph(this.globalVariables());
         sprite.isTemporary = true;
-        sprite.cloneOriginName = ide.newSpriteName(sprite.name);
+        ide = stage.parentThatIsA(IDE_Morph);
+        if (ide) {
+            sprite.cloneOriginName = ide.newSpriteName(sprite.name);
+        }
         sprite.setCenter(this.center());
-        ide.stage.add(sprite);
-        ide.stage.cloneCount += 1;
+        stage.add(sprite);
+        stage.cloneCount += 1;
         sprite.fixLayout();
         sprite.rerender();
     } else {
@@ -10678,6 +10684,7 @@ StageMorph.prototype.init = function (globals) {
     this.isFastTracked = false;
     this.enableCustomHatBlocks = true;
     this.cloneCount = 0;
+    this.isHiddenInCorral = false;
 
     this.timerStart = Date.now();
     this.tempo = 60; // bpm
@@ -11598,6 +11605,7 @@ StageMorph.prototype.fireGreenFlagEvent = function () {
         ide = this.parentThatIsA(IDE_Morph);
 
     this.removeAllClones();
+    this.threads.stopAll();
     this.runInitScripts();
     this.children.concat(this).forEach(morph => {
         if (isSnapObject(morph)) {
@@ -12223,7 +12231,9 @@ StageMorph.prototype.userMenu = function () {
         // menu.addItem('help', 'nop');
         return menu;
     }
-    menu.addItem("edit", 'edit');
+    if (!this.isHiddenInCorral) {
+        menu.addItem("edit", 'edit');
+    }
     menu.addItem("show all", 'showAll');
     menu.addItem(
         "pic...",
@@ -14397,8 +14407,8 @@ Costume.prototype.thumb = function (extentPoint) {
                 (extentPoint.x / w),
                 (extentPoint.y / h)
             ),
-            xOffset = (extentPoint.x - (w * scale)) / 2,
-            yOffset = (extentPoint.y - (h * scale)) / 2;
+            xOffset = (extentPoint.x - (w * scale)) / 4,
+            yOffset = (extentPoint.y - (h * scale)) / 4;
 
         ctx.save();
         ctx.scale(scale, scale);

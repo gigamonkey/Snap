@@ -113,7 +113,7 @@ ADT_SlotMorph*/
 
 // Global stuff ////////////////////////////////////////////////////////
 
-modules.byob = '2026-August-13';
+modules.byob = '2026-October-20';
 
 // Declarations
 
@@ -476,9 +476,6 @@ CustomBlockDefinition.prototype.parseChoices = function (string) {
         } else {
             // support translating custom drop-downs by prefixing items w/ "$_"
             key = pair[0];
-            if (isString(key) && key.length > 2 && key.startsWith('$_')) {
-                key = localize(key.slice(2));
-            }
             val = pair[1];
             if (isString(val) && val.length > 2 && val.startsWith('$_')) {
                 val = [val.slice(2)];
@@ -489,8 +486,16 @@ CustomBlockDefinition.prototype.parseChoices = function (string) {
                         Object.keys(dict).filter(each => each.startsWith('~')
                     ).length + 1);
                 }
-                dict[key] = key;
+                if (isString(key) && key.length > 2 && key.startsWith('$_')) {
+                    key = key.slice(2);
+                    dict[localize(key)] = [key];
+                } else {
+                    dict[key] = key;
+                }
             } else {
+                if (isString(key) && key.length > 2 && key.startsWith('$_')) {
+                    key = localize(key.slice(2));
+                }
                 dict[key] = val;
             }
         }
@@ -2406,7 +2411,7 @@ CustomReporterBlockMorph.prototype.init = function (
         this.isTemplate = true;
     }
     this.category = definition.category;
-    this.reports = definition.reports;
+    this.reports = isPredicate ? 'Boolean' : definition.reports;
     this.storedTranslations = null; // transient - only for "wishes"
     this.variables = new VariableFrame();
     this.initializeVariables(definition.variableNames);
@@ -2425,7 +2430,7 @@ CustomReporterBlockMorph.prototype.reactToTemplateCopy =
 CustomReporterBlockMorph.prototype.refresh = function (aDefinition, offset) {
     var def = aDefinition || this.definition;
     CustomCommandBlockMorph.prototype.refresh.call(this, aDefinition, offset);
-    this.reports = def.reports;
+    this.reports = this.isPredicate ? 'Boolean' : def.reports;
     if (!this.isPrototype) {
         this.isPredicate = (def.type === 'predicate');
     }
@@ -3825,7 +3830,7 @@ BlockEditorMorph.prototype.context = function (prototypeHat) {
 };
 
 BlockEditorMorph.prototype.inferredReturnType = function (context) {
-    var script = context.expression,
+    var script = context?.expression,
         reportBlock,
         reportExpression,
         reportLiteral;

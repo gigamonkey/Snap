@@ -87,11 +87,11 @@ HatBlockMorph, ZOOM*/
 
 // Global stuff ////////////////////////////////////////////////////////
 
-modules.gui = '2026-October-02';
+modules.gui = '2026-October-23';
 
 // Declarations
 
-var SnapVersion = '12.2.2';
+var SnapVersion = '12.3.6';
 
 var IDE_Morph;
 var ProjectDialogMorph;
@@ -1694,6 +1694,13 @@ IDE_Morph.prototype.createControlBar = function () {
         );
         this.label.setCenter(this.center());
         this.label.setLeft(this.settingsButton.right() + padding);
+
+        this.label.mouseClickLeft = function () {
+            if (myself.hasUnsavedEdits()) {
+                myself.save();
+            }
+        };
+
         this.add(this.label);
     };
 };
@@ -2612,7 +2619,7 @@ IDE_Morph.prototype.createCorralBar = function () {
     this.corralBar.userMenu = () => {
         var menu = new MenuMorph(sprite => {
                 sprite.isHiddenInCorral = !sprite.isHiddenInCorral;
-                this.createCorral(true); // keep scenes
+                this.createCorral(false); // re-create scenes
                 this.fixLayout();
             }),
             on = new SymbolMorph(
@@ -2624,6 +2631,16 @@ IDE_Morph.prototype.createCorralBar = function () {
                 MorphicPreferences.menuFontSize * 0.75
             );
 
+        menu.addItem(
+            [
+                this.stage.isHiddenInCorral ? off : on,
+                this.stage.name
+            ],
+            this.stage
+        );
+        if (this.sprites.length() > 1) {
+            menu.addLine();
+        }
         this.sprites.asArray().forEach(sprite =>
             menu.addItem(
                 [
@@ -2633,6 +2650,19 @@ IDE_Morph.prototype.createCorralBar = function () {
                 sprite
             )
         );
+        if (this.scenes.length() > 1) {
+            menu.addLine();
+            menu.addSectionLabel('Scenes');
+            this.scenes.asArray().forEach(scene =>
+                menu.addItem(
+                    [
+                        scene.isHiddenInCorral ? off : on,
+                        scene.name || localize('untitled')
+                    ],
+                    scene
+                )
+            );
+        }
         return menu;
     };
 
@@ -2672,6 +2702,9 @@ IDE_Morph.prototype.createCorral = function (keepSceneAlbum) {
     this.corral.stageIcon = new SpriteIconMorph(this.stage);
     this.corral.stageIcon.isDraggable = false;
     this.corral.add(this.corral.stageIcon);
+    if (this.stage.isHiddenInCorral) {
+        this.corral.stageIcon.hide();
+    }
 
     frame = new ScrollFrameMorph(null, null, this.sliderColor);
     frame.acceptsDrops = false;
@@ -2704,7 +2737,11 @@ IDE_Morph.prototype.createCorral = function (keepSceneAlbum) {
         this.stageIcon.setLeft(this.left() + padding);
 
         // scenes
-        if (myself.tutorial || myself.scenes.length() < 2) {
+        if (
+            myself.tutorial ||
+            myself.scenes.asArray().filter(scn =>
+                !scn.isHiddenInCorral).length < 2
+        ) {
             this.album.hide();
         } else {
             this.stageIcon.setTop(this.top());
@@ -5330,7 +5367,7 @@ IDE_Morph.prototype.projectMenu = function () {
             if (shiftClicked) {
                 menu.addItem(
                     'Remove template',
-                    () => this.scene.template = null,
+                    () => this.scene.refreshTemplate(),
                     '"' + this.scene.template.name + '"',
                     new Color(100, 0, 0)
                 );
@@ -6528,7 +6565,7 @@ IDE_Morph.prototype.generatePuzzle = function () {
         m instanceof BlockMorph
     ).forEach(b => b.destroy());
 
-    // store the solution inside the puzzlem
+    // store the solution inside the puzzle
     // and remove the solution from the stage
     puzzle.solution = current;
     this.removeSprite(current, false); // disable undelete
@@ -7379,7 +7416,7 @@ IDE_Morph.prototype.openProject = function (project, purgeCustomizedPrims) {
     if (purgeCustomizedPrims) {
         scn.blocks = SpriteMorph.prototype.primitiveBlocks();
     }
-    if (scn.createdFromTemplate) {
+    if (scn.createdFromTemplate || scn.template.tutor) {
         // switch to edit mode, unless when
         this.toggleAppMode(false);
         // launch tutorial, if any exist
@@ -8838,7 +8875,7 @@ IDE_Morph.prototype.projectSettingsMenu = function () {
 
 IDE_Morph.prototype.templateSettingsMenu = function () {
     var menu = new MenuMorph(this),
-        settings = ['lang', 'zoom', 'scale', 'fade', 'flat', 'bright'],
+        settings = ['tutor', 'lang', 'zoom', 'scale', 'fade', 'flat', 'bright'],
         tick = new SymbolMorph(
             'tick',
             MorphicPreferences.menuFontSize * 0.75
@@ -8892,6 +8929,17 @@ IDE_Morph.prototype.templateSettingsMenu = function () {
 
     menu.addLine();
 
+    menu.addPreference(
+        'Tutorial',
+        () => {
+            if (this.scene.template.tutor === undefined) {
+                this.scene.template.tutor = null;
+            } else {
+                delete this.scene.template.tutor;
+            }
+        },
+        this.scene.template.tutor !== undefined
+    );
     menu.addPreference(
         'Language',
         () => {
@@ -12933,7 +12981,7 @@ CostumeIconMorph.prototype.duplicateCostume = function () {
 CostumeIconMorph.prototype.removeCostume = function () {
     var wardrobe = this.parentThatIsA(WardrobeMorph),
         idx = this.parent.children.indexOf(this),
-        off = CamSnapshotDialogMorph.prototype.enableCamera ? 3 : 2;
+        off = CamSnapshotDialogMorph.prototype.enableCamera ? 4 : 3;
     wardrobe.removeCostumeAt(idx - off); // ignore paintbrush and camera buttons
     if (wardrobe.sprite.costume === this.object) {
         wardrobe.sprite.wearCostume(null);
@@ -12995,7 +13043,7 @@ CostumeIconMorph.prototype.disinherit = function () {
         idx = this.parent.children.indexOf(this);
     if (wardrobe.sprite.inheritsAttribute('costumes')) {
         wardrobe.sprite.shadowAttribute('costumes');
-        this.object = wardrobe.sprite.costumes.at(idx - 3);
+        this.object = wardrobe.sprite.costumes.at(idx - 4);
     }
 };
 
@@ -13233,6 +13281,7 @@ WardrobeMorph.prototype.updateList = function () {
         oldPos = this.contents.position(),
         icon,
         txt,
+        shapesbutton,
         paintbutton,
         cambutton;
 
@@ -13251,6 +13300,30 @@ WardrobeMorph.prototype.updateList = function () {
     this.addContents(icon);
     y = icon.bottom() + padding;
 
+    shapesbutton = new PushButtonMorph(
+        this,
+        "importNew",
+        new SymbolMorph("picture", 15)
+    );
+
+    shapesbutton.padding = 0;
+    shapesbutton.corner = 12;
+    shapesbutton.color = IDE_Morph.prototype.groupColor;
+    shapesbutton.highlightColor = IDE_Morph.prototype.frameColor;
+    shapesbutton.pressColor = shapesbutton.highlightColor;
+    shapesbutton.labelMinExtent = new Point(36, 18);
+    shapesbutton.labelShadowOffset = new Point(-1, -1);
+    shapesbutton.labelShadowColor = shapesbutton.highlightColor;
+    shapesbutton.labelColor = TurtleIconMorph.prototype.labelColor;
+    shapesbutton.contrast = this.buttonContrast;
+    shapesbutton.hint = "Select a costume from the media library";
+    shapesbutton.setPosition(new Point(x, y));
+    shapesbutton.fixLayout();
+    shapesbutton.setCenter(icon.center());
+    shapesbutton.setLeft(icon.right() + padding * 4);
+
+    this.addContents(shapesbutton);
+
     paintbutton = new PushButtonMorph(
         this,
         "paintNew",
@@ -13259,7 +13332,7 @@ WardrobeMorph.prototype.updateList = function () {
     paintbutton.padding = 0;
     paintbutton.corner = 12;
     paintbutton.color = IDE_Morph.prototype.groupColor;
-    paintbutton.highlightColor = IDE_Morph.prototype.frameColor.darker(50);
+    paintbutton.highlightColor = IDE_Morph.prototype.frameColor;
     paintbutton.pressColor = paintbutton.highlightColor;
     paintbutton.labelMinExtent = new Point(36, 18);
     paintbutton.labelShadowOffset = new Point(-1, -1);
@@ -13270,7 +13343,7 @@ WardrobeMorph.prototype.updateList = function () {
     paintbutton.setPosition(new Point(x, y));
     paintbutton.fixLayout();
     paintbutton.setCenter(icon.center());
-    paintbutton.setLeft(icon.right() + padding * 4);
+    paintbutton.setLeft(shapesbutton.right() + padding);
 
     this.addContents(paintbutton);
 
@@ -13283,7 +13356,7 @@ WardrobeMorph.prototype.updateList = function () {
         cambutton.padding = 0;
         cambutton.corner = 12;
         cambutton.color = IDE_Morph.prototype.groupColor;
-        cambutton.highlightColor = IDE_Morph.prototype.frameColor.darker(50);
+        cambutton.highlightColor = IDE_Morph.prototype.frameColor;
         cambutton.pressColor = paintbutton.highlightColor;
         cambutton.labelMinExtent = new Point(36, 18);
         cambutton.labelShadowOffset = new Point(-1, -1);
@@ -13365,6 +13438,17 @@ WardrobeMorph.prototype.removeCostumeAt = function (idx) {
     this.sprite.shadowAttribute('costumes');
     this.sprite.costumes.remove(idx);
     this.updateList();
+};
+
+WardrobeMorph.prototype.importNew = function () {
+    var ide = this.parentThatIsA(IDE_Morph),
+        graphicsName = ide.currentSprite instanceof SpriteMorph ?
+                'Costumes' : 'Backgrounds';
+    if (location.protocol === 'file:') {
+        ide.importLocalFile();
+        return;
+    }
+    ide.importMedia(graphicsName);
 };
 
 WardrobeMorph.prototype.paintNew = function () {
@@ -13643,7 +13727,7 @@ SoundIconMorph.prototype.renameSound = function () {
 
 SoundIconMorph.prototype.removeSound = function () {
     var jukebox = this.parentThatIsA(JukeboxMorph),
-        idx = this.parent.children.indexOf(this) - 1;
+        idx = this.parent.children.indexOf(this) - 2;
     jukebox.removeSound(idx);
     jukebox.sprite.recordUserEdit(
         'sound',
@@ -13671,7 +13755,7 @@ SoundIconMorph.prototype.disinherit = function () {
         idx = this.parent.children.indexOf(this);
     if (jukebox.sprite.inheritsAttribute('sounds')) {
         jukebox.sprite.shadowAttribute('sounds');
-        this.object = jukebox.sprite.sounds.at(idx - 1);
+        this.object = jukebox.sprite.sounds.at(idx - 2);
     }
 };
 
@@ -13725,6 +13809,7 @@ JukeboxMorph.prototype.updateList = function () {
         icon,
         txt,
         ide = this.sprite.parentThatIsA(IDE_Morph),
+        importButton,
         recordButton;
 
     this.changed();
@@ -13743,15 +13828,36 @@ JukeboxMorph.prototype.updateList = function () {
     txt.setPosition(new Point(x, y));
     this.addContents(txt);
 
+    importButton = new PushButtonMorph(
+        this,
+        'importNew',
+        new SymbolMorph('notes', 15)
+    );
+    importButton.padding = 0;
+    importButton.corner = 12;
+    importButton.color = IDE_Morph.prototype.groupColor;
+    importButton.highlightColor = IDE_Morph.prototype.frameColor;
+    importButton.pressColor = importButton.highlightColor;
+    importButton.labelMinExtent = new Point(36, 18);
+    importButton.labelShadowOffset = new Point(-1, -1);
+    importButton.labelShadowColor = importButton.highlightColor;
+    importButton.labelColor = TurtleIconMorph.prototype.labelColor;
+    importButton.contrast = this.buttonContrast;
+    importButton.hint = 'Select a sound from the media library';
+    importButton.fixLayout();
+    importButton.setPosition(txt.bottomLeft().add(new Point(0, padding * 2)));
+
+    this.addContents(importButton);
+
     recordButton = new PushButtonMorph(
         ide,
         'recordNewSound',
-        new SymbolMorph('circleSolid', 15)
+        new SymbolMorph('microphone', 15)
     );
     recordButton.padding = 0;
     recordButton.corner = 12;
     recordButton.color = IDE_Morph.prototype.groupColor;
-    recordButton.highlightColor = IDE_Morph.prototype.frameColor.darker(50);
+    recordButton.highlightColor = IDE_Morph.prototype.frameColor;
     recordButton.pressColor = recordButton.highlightColor;
     recordButton.labelMinExtent = new Point(36, 18);
     recordButton.labelShadowOffset = new Point(-1, -1);
@@ -13760,9 +13866,9 @@ JukeboxMorph.prototype.updateList = function () {
     recordButton.contrast = this.buttonContrast;
     recordButton.hint = 'Record a new sound';
     recordButton.fixLayout();
-    recordButton.label.setColor(new Color(255, 20, 20));
     recordButton.setPosition(txt.bottomLeft().add(new Point(0, padding * 2)));
-
+    recordButton.setPosition(txt.bottomLeft().add(new Point(0, padding * 2)));
+    recordButton.setLeft(importButton.right() + padding);
     this.addContents(recordButton);
 
     y = recordButton.bottom() + padding;
@@ -13804,6 +13910,15 @@ JukeboxMorph.prototype.step = function () {
 JukeboxMorph.prototype.removeSound = function (idx) {
     this.sprite.sounds.remove(idx);
     this.updateList();
+};
+
+JukeboxMorph.prototype.importNew = function () {
+    var ide = this.parentThatIsA(IDE_Morph);
+    if (location.protocol === 'file:') {
+        ide.importLocalFile();
+        return;
+    }
+    ide.importMedia('Sounds');
 };
 
 // Jukebox drag & drop
@@ -14149,13 +14264,15 @@ SceneAlbumMorph.prototype.updateList = function () {
     this.addBack(this.contents);
 
     this.ide.scenes.asArray().forEach((scene, i) => {
-        icon = new SceneIconMorph(scene);
-        if (i < 1) {
-            icon.isDraggable = false; // project scene cannot be rearranged
+        if (!scene.isHiddenInCorral) {
+            icon = new SceneIconMorph(scene);
+            if (i < 1) {
+                icon.isDraggable = false; // project scene cannot be rearranged
+            }
+            icon.setPosition(new Point(x, y));
+            this.addContents(icon);
+            y = icon.bottom() + padding;
         }
-        icon.setPosition(new Point(x, y));
-        this.addContents(icon);
-        y = icon.bottom() + padding;
     });
     this.version = this.ide.scenes.lastChanged;
 
@@ -14186,10 +14303,15 @@ SceneAlbumMorph.prototype.step = function () {
     }
 };
 
-// Wardrobe ops
+// SceneAlbumMorph ops
 
 SceneAlbumMorph.prototype.removeSceneAt = function (idx) {
     this.ide.scenes.remove(idx);
+    if (this.ide.scenes.length() < 2) {
+        this.ide.createCorral(false); // re-create scenes
+        this.ide.fixLayout();
+        return;
+    }
     this.updateList();
 };
 
@@ -14453,7 +14575,7 @@ CamSnapshotDialogMorph.prototype.notSupportedMessage =
 	'Some browsers also require you to access Snap!\n' +
 	'through HTTPS to use the camera.\n\n' +
     'Please replace the "http://" part of the address\n' +
-    'in your browser by "https://" and try again.';
+    'in your browser by "https://" and refresh the page.';
 
 // CamSnapshotDialogMorph instance creation
 

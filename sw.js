@@ -7,7 +7,7 @@ if (self.location.hostname === 'localhost' ||
     // Prevent caching during development
     cacheBuster = Date.now();
 }
-var snapVersion = '12.2.2',
+var snapVersion = '12.3.6',
     cacheName = `snap-pwa-${snapVersion}`,
     filesToCache = [
         'snap.html',
@@ -134,6 +134,7 @@ var snapVersion = '12.2.2',
         'libraries/colors.xml',
         'libraries/colors_module.xml',
         'libraries/continuations_module.xml',
+        'libraries/costume_composition_module.xml',
         'libraries/crayons.xml',
         'libraries/drawPath_module.xml',
         'libraries/Eisenbergification.xml',
@@ -152,6 +153,7 @@ var snapVersion = '12.2.2',
         'libraries/iteration-composition.xml',
         'libraries/list_comprehension_module.xml',
         'libraries/list-utilities.xml',
+        'libraries/lists_module.xml',
         'libraries/localstorage_module.xml',
         'libraries/tiles_module.xml',
         'libraries/make-variables.xml',
@@ -170,6 +172,7 @@ var snapVersion = '12.2.2',
         'libraries/parallel_module.xml',
         'libraries/pixel_module.xml',
         'libraries/plot_bars_module.xml',
+        'libraries/presentations_module.xml',
         'libraries/replace_letters_module.xml',
 
         // Snap4Arduino
