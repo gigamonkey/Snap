@@ -15297,10 +15297,38 @@ CellMorph.prototype.init = function (contents, color, idx, parentCell) {
     this.color = color || new Color(255, 140, 0);
     this.isBig = false;
     this.version = null; // only for observing sprites
+    this.viewMode = null; // null (automatic), 'table' or 'list' - for lists
     this.fixLayout();
 };
 
 // CellMorph accessing:
+
+CellMorph.prototype.listViewMode = function () {
+    // answer 'table' or 'list' if my contents is a list, otherwise null.
+    // an explicit viewMode setting (made by the user or by a program)
+    // overrides the automatic choice based on the list's shape
+    if (!(this.contents instanceof List)) {return null; }
+    if (!List.prototype.enableTables) {return 'list'; }
+    return this.viewMode || (this.contents.isTable() ? 'table' : 'list');
+};
+
+CellMorph.prototype.canKeepContentsMorph = function () {
+    // answer whether my current contents morph still fits my contents,
+    // so re-building can be skipped (preserving scroll positions etc.)
+    if (this.contents?.isADT?.()) {
+        return this.contentsMorph instanceof TableFrameMorph &&
+            this.contentsMorph.tableMorph.table.isADT?.();
+    }
+    if (this.contentsMorph instanceof ListWatcherMorph) {
+        return this.contentsMorph.list === this.contents &&
+            this.listViewMode() === 'list';
+    }
+    if (this.contentsMorph instanceof TableFrameMorph) {
+        return this.contentsMorph.tableMorph.table === this.contents &&
+            this.listViewMode() === 'table';
+    }
+    return false;
+};
 
 CellMorph.prototype.big = function () {
     this.isBig = true;
@@ -15340,10 +15368,7 @@ CellMorph.prototype.isCircular = function (list) {
 // CellMorph layout:
 
 CellMorph.prototype.fixLayout = function (justMe) {
-    var isSameList = this.contentsMorph instanceof ListWatcherMorph
-            && (this.contentsMorph.list === this.contents),
-        isSameTable = this.contentsMorph instanceof TableFrameMorph
-            && (this.contentsMorph.tableMorph.table === this.contents),
+    var keepContents = this.canKeepContentsMorph(),
         listwatcher;
 
     if (justMe) {return; }
@@ -15362,7 +15387,7 @@ CellMorph.prototype.fixLayout = function (justMe) {
     ));
 
    // position my contents
-    if (!isSameList && !isSameTable) {
+    if (!keepContents) {
         this.contentsMorph.setCenter(this.center());
     }
 
@@ -15382,23 +15407,18 @@ CellMorph.prototype.fixLayout = function (justMe) {
 CellMorph.prototype.createContents = function () {
     // re-build my contents
     var fontSize = SyntaxElementMorph.prototype.fontSize,
-        isSameList = this.contentsMorph instanceof ListWatcherMorph
-            && (this.contentsMorph.list === this.contents),
-        isSameTable = this.contentsMorph instanceof TableFrameMorph
-            && (this.contentsMorph.tableMorph.table === this.contents ||
-                (this.contents.isADT?.() &&
-                this.contentsMorph.tableMorph.table.isADT?.()));
+        keepContents = this.canKeepContentsMorph();
 
     if (this.isBig) {
         fontSize = fontSize * 1.5;
     }
 
-    if (this.contentsMorph && !isSameList && !isSameTable) {
+    if (this.contentsMorph && !keepContents) {
         this.contentsMorph.destroy();
         this.version = null;
     }
 
-    if (!isSameList && !isSameTable) {
+    if (!keepContents) {
         this.contentsMorph = this.dataAsMorph(this.contents);
         this.add(this.contentsMorph);
     }
@@ -15414,7 +15434,7 @@ CellMorph.prototype.dataAsMorph = function (data) {
                 : !SpriteMorph.prototype.disableDraggingData,
         contents,
         setupList = () => {
-            if (data.isTable()) {
+            if (this.listViewMode() === 'table') {
                 contents = new TableFrameMorph(
                     new TableMorph(data)
                 );
@@ -15942,6 +15962,10 @@ WatcherMorph.prototype.update = function () {
                 )
         ) {
             this.changed();
+            if (newValue !== this.currentValue) {
+                // a new value resets any explicitly chosen list view
+                this.cellMorph.viewMode = null;
+            }
             this.cellMorph.contents = newValue;
             this.isGhosted = isInherited;
             if (isSnapObject(this.target)) {

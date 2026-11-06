@@ -1891,6 +1891,7 @@ ListWatcherMorph.prototype.showTableView = function () {
         view.contents = new TableFrameMorph(new TableMorph(this.list, 10));
         view.contents.expand(this.extent());
     } else { // watcher cell
+        view.viewMode = 'table';
         view.changed();
         view.contentsMorph.destroy();
         view.contentsMorph = new TableFrameMorph(new TableMorph(this.list, 10));

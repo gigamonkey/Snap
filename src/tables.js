@@ -1330,6 +1330,7 @@ TableMorph.prototype.showListView = function () {
         view.contents.step = view.contents.update;
         view.contents.expand(this.extent());
     } else { // watcher cell
+        view.viewMode = 'list';
         view.changed();
         view.contentsMorph.destroy();
         view.contentsMorph = new ListWatcherMorph(this.table);

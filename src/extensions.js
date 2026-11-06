@@ -1676,6 +1676,35 @@ SnapExtensions.primitives.set(
     }
 );
 
+SnapExtensions.primitives.set(
+    'var_table_view(name, [on?])',
+    function (name, on, proc) {
+        // switch the stage watcher of a list variable to table view
+        // (on? is true), list view (on? is false) or back to automatic
+        // mode (on? is omitted / empty) - no-op if there is no watcher
+        var stage = this.parentThatIsA(StageMorph),
+            frame = proc.context.isInCustomBlock() ?
+                        proc.homeContext.variables
+                        : proc.context.outerContext.variables,
+            target = frame.silentFind(name),
+            watcher;
+
+        if (!target) {return; }
+        watcher = detect(
+            stage.children,
+            morph => morph instanceof WatcherMorph &&
+                morph.target === target &&
+                    morph.getter === name
+        );
+        if (!watcher) {return; }
+        watcher.cellMorph.viewMode = isNil(on) || on === '' ? null
+            : on ? 'table' : 'list';
+        watcher.cellMorph.fixLayout();
+        watcher.fixLayout();
+        watcher.rerender();
+    }
+);
+
 // IDE (ide_):
 
 // Returns all blocks of the current sprite, regardless of visibility
