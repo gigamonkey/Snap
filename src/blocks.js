@@ -3038,7 +3038,9 @@ SyntaxElementMorph.prototype.showBubble = function (
         pos,
         isClickable
     );
-    if (exportPic) {
+    if (exportPic === 'value') {
+        this.exportValuePic(bubble);
+    } else if (exportPic) {
         this.exportPictureWithResult(bubble);
     }
     if (anchor instanceof SpriteIconMorph) {
@@ -3099,6 +3101,35 @@ SyntaxElementMorph.prototype.exportPictureWithResult = function (aBubble) {
         'image/png',
         (ide.getProjectName() || localize('untitled')) + ' ' +
             localize('script pic')
+    );
+};
+
+SyntaxElementMorph.prototype.exportValuePic = function (aBubble) {
+    // save a picture of just the result bubble, without the script
+    // and without the bubble's hook
+    if (this.removeHighlight) {this.removeHighlight(); }
+    var ide = this.parentThatIsA(IDE_Morph) ||
+            this.parentThatIsA(BlockEditorMorph).target.parentThatIsA(
+                IDE_Morph
+            ),
+        hook = aBubble.isThought,
+        pic;
+
+    aBubble.isThought = 'none'; // anything but true or false: no hook
+    aBubble.rerender();
+    aBubble.removeShadow();
+    aBubble.addShadow(new Point(2, 2), 80);
+    pic = aBubble.fullImage();
+
+    aBubble.isThought = hook;
+    aBubble.rerender();
+    aBubble.removeShadow();
+    aBubble.addShadow(new Point(2, 2), 80);
+
+    ide.saveCanvasAs(
+        pic,
+        (ide.getProjectName() || localize('untitled')) + ' ' +
+            localize('value pic')
     );
 };
 
@@ -4064,6 +4095,11 @@ BlockMorph.prototype.userMenu = function () {
                 () => top.exportResultPic(),
                 'save a picture of both\nthis script and its result'
             );
+            menu.addItem(
+                "value pic...",
+                () => top.exportResultPic(true),
+                'save a picture of\njust the result'
+            );
         }
     }
     if (top instanceof PrototypeHatBlockMorph) {
@@ -4763,7 +4799,8 @@ BlockMorph.prototype.showHelp = function () {
 
 // BlockMorph exporting picture with result bubble
 
-BlockMorph.prototype.exportResultPic = function () {
+BlockMorph.prototype.exportResultPic = function (valueOnly) {
+    // if valueOnly is true only export a picture of the result bubble
     var top = this.topBlock(),
         receiver = top.scriptTarget(),
         stage;
@@ -4772,7 +4809,12 @@ BlockMorph.prototype.exportResultPic = function () {
         stage = receiver.parentThatIsA(StageMorph);
         if (stage) {
             stage.threads.stopProcess(top);
-            stage.threads.startProcess(top, receiver, false, true);
+            stage.threads.startProcess(
+                top,
+                receiver,
+                false,
+                valueOnly ? 'value' : true
+            );
         }
     }
 };

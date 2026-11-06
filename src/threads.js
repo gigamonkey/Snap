@@ -625,7 +625,8 @@ ThreadManager.prototype.clickFrameFor = function (block) {
     isShowingResult     boolean flag indicating whether a "report" command
                         has been executed in a user-clicked process
     exportResult        boolean flag indicating whether a picture of the top
-                        block along with the result bubble shoud be exported
+                        block along with the result bubble shoud be exported,
+                        or the string 'value' to export only the bubble
     onComplete          an optional callback function to be executed when
                         the process is done
     procedureCount      number counting procedure call entries,
