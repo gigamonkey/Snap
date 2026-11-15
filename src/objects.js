@@ -11369,6 +11369,14 @@ StageMorph.prototype.developersMenu = function () {
 // StageMorph keyboard events
 
 StageMorph.prototype.processKeyDown = function (event) {
+    var picker = detect(
+        this.children,
+        morph => morph instanceof StagePickerMorph
+    );
+    if (picker && picker.processKeyDown(event)) {
+        // the key was used to navigate the options of a pending question
+        return;
+    }
     this.processKeyEvent(
         event,
         this.fireKeyEvent
@@ -17062,9 +17070,53 @@ StagePickerMorph.prototype.adjustWidths = function () {
     });
 };
 
+// StagePickerMorph keyboard accessibility
+
+/*
+    the stage forwards its key-down events to me while I'm showing, so the
+    user can navigate my options with the arrow keys and pick one with
+    enter or space. Unlike regular menus I never hold the world's keyboard
+    focus myself, all other keys keep going to the stage.
+*/
+
+StagePickerMorph.prototype.processKeyDown = function (event) {
+    // answer whether I've consumed the event
+    if (event.ctrlKey || event.metaKey || event.shiftKey ||
+            !contains([13, 32, 37, 38, 39, 40], event.keyCode)) {
+        return false;
+    }
+    StagePickerMorph.uber.processKeyDown.call(this.focusedMenu(), event);
+    return true;
+};
+
+StagePickerMorph.prototype.focusedMenu = function () {
+    // answer the innermost submenu that is being navigated by keyboard
+    var menu = this;
+    while (menu.submenu && menu.submenu.hasFocus) {
+        menu = menu.submenu;
+    }
+    return menu;
+};
+
+StagePickerMorph.prototype.getFocus = function () {
+    this.selection = null;
+    this.selectFirst();
+    this.hasFocus = true;
+};
+
+StagePickerMorph.prototype.leaveSubmenu = function () {
+    var menu = this.parent;
+    if (menu instanceof StagePickerMorph) {
+        menu.submenu = null;
+        this.destroy();
+    }
+};
+
 // StagePickerMorph removing
 
 StagePickerMorph.prototype.destroy = function () {
+    this.selection = null;
+    this.hasFocus = false;
     MenuMorph.uber.destroy.call(this);
 };
 
@@ -17152,6 +17204,18 @@ StagePickerItemMorph.prototype.createLabelString = function (string) {
     ));
     lbl.setColor(this.labelColor);
     return lbl;
+};
+
+// StagePickerItemMorph events:
+
+StagePickerItemMorph.prototype.mouseEnter = function () {
+    // keep the mouse and the keyboard selection in sync
+    var menu = this.parentThatIsA(MenuMorph);
+    if (menu && !this.isShowingSubmenu()) {
+        menu.unselectAllItems();
+        menu.selection = this;
+    }
+    StagePickerItemMorph.uber.mouseEnter.call(this);
 };
 
 // StagePickerItemMorph submenus:
