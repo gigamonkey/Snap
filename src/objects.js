@@ -4323,6 +4323,8 @@ SpriteMorph.prototype.makeVariableButton = function () {
         var ide;
         if (pair) {
             ide = myself.parentThatIsA(IDE_Morph);
+            // don't clobber an existing variable of the same scope
+            pair[0] = myself.unusedVariableName(pair[0], pair[1]);
             myself.addVariable(pair[0], pair[1]);
             myself.toggleVariableWatcher(pair[0], pair[1]);
             ide.flushBlocksCache('variables'); // b/c of inheritance
@@ -5380,6 +5382,24 @@ SpriteMorph.prototype.addVariable = function (name, isGlobal) {
         this.variables.addVar(name);
         this.primitivesCache.variables = null;
     }
+};
+
+SpriteMorph.prototype.unusedVariableName = function (name, isGlobal) {
+    // answer the given name if no variable of that name exists in the
+    // given scope, otherwise a variant of it made unique the same way
+    // as custom block specs, i.e. "name (2)", "name (3)" etc.
+    // note: only the scope itself is checked, so a sprite-local variable
+    // can still shadow a global or an inherited one
+    var vars = (isGlobal ? this.globalVariables() : this.variables).vars,
+        exists = each => Object.prototype.hasOwnProperty.call(vars, each),
+        unique = name,
+        count = 1;
+
+    while (exists(unique)) {
+        count += 1;
+        unique = name + ' (' + count + ')';
+    }
+    return unique;
 };
 
 SpriteMorph.prototype.deleteVariable = function (varName, isGlobal) {
@@ -12741,6 +12761,8 @@ StageMorph.prototype.reporterize = SpriteMorph.prototype.reporterize;
 StageMorph.prototype.variableBlock = SpriteMorph.prototype.variableBlock;
 StageMorph.prototype.showingWatcher = SpriteMorph.prototype.showingWatcher;
 StageMorph.prototype.addVariable = SpriteMorph.prototype.addVariable;
+StageMorph.prototype.unusedVariableName =
+    SpriteMorph.prototype.unusedVariableName;
 StageMorph.prototype.deleteVariable = SpriteMorph.prototype.deleteVariable;
 StageMorph.prototype.renameVariable = SpriteMorph.prototype.renameVariable;
 StageMorph.prototype.flashScope = SpriteMorph.prototype.flashScope;
