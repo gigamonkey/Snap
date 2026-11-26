@@ -1349,16 +1349,29 @@ CustomCommandBlockMorph.prototype.refresh = function (aDefinition, offset) {
 CustomCommandBlockMorph.prototype.restoreInputs = function (oldInputs, offset) {
     // try to restore my previous inputs when my spec has been changed
 
-    if (offset) { // || this.definition?.primitive) {
-        // assuming a "relabel" action that needs to shift inputs
+    var scripts = this.parentThatIsA(ScriptsMorph);
+
+    if (!isNil(offset)) { // || this.definition?.primitive) {
+        // an offset - even zero - indicates a "relabel" action among
+        // (customized) primitives, which may need to shift inputs and
+        // to redistribute them among variadic infix slots
         this.refreshDefaults();
-        BlockMorph.prototype.restoreInputs.call(this, oldInputs, offset);
+        BlockMorph.prototype.restoreInputs.call(
+            this,
+            oldInputs,
+            offset
+        ).forEach(blk => {
+            // keep unused blocks around in the scripting area
+            if (scripts) {
+                blk.moveBy(10);
+                scripts.add(blk);
+            }
+        });
         return;
     }
 
     var newInputs = this.inputs(),
         len = Math.max(oldInputs.length, newInputs.length),
-        scripts = this.parentThatIsA(ScriptsMorph),
         old,
         inp,
         i;
@@ -2287,11 +2300,9 @@ CustomCommandBlockMorph.prototype.relabel = function (alternatives) {
                 sel = alt;
                 off = 0;
             }
+            // the alternative can be either another customized primitive
+            // or a plain one
             block = SpriteMorph.prototype.blockForSelector(sel, true);
-            if (!block.isCustomBlock || !block.isGlobal) {
-                return;
-            }
-            def = block.definition;
             block.restoreInputs(oldInputs, off);
         }
         block.fixBlockColor(null, true);
@@ -2299,10 +2310,14 @@ CustomCommandBlockMorph.prototype.relabel = function (alternatives) {
         menu.addItem(
             block.doWithAlpha(1, () => block.fullImage()),
             () => {
-                this.definition = def;
-                this.isGlobal = def.isGlobal;
-                this.refresh(def, off);
-                this.fixLayout();
+                if (def) {
+                    this.definition = def;
+                    this.isGlobal = def.isGlobal;
+                    this.refresh(def);
+                    this.fixLayout();
+                } else {
+                    this.setSelector(sel, -off);
+                }
                 this.scriptTarget().recordUserEdit(
                     'scripts',
                     'block',

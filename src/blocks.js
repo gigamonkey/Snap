@@ -4525,9 +4525,43 @@ BlockMorph.prototype.setSelector = function (aSelector, inputOffset = 0) {
         scripts = this.parentThatIsA(ScriptsMorph),
         surplus,
         info,
+        def,
         slots,
         i;
     info = SpriteMorph.prototype.blocks[aSelector];
+    def = info.definition;
+    if (def instanceof CustomBlockDefinition) {
+        // the target is a customized primitive, become an instance of it
+        if (!this.isCustomBlock) {
+            Object.setPrototypeOf(
+                this,
+                Object.getPrototypeOf(def.blockInstance())
+            );
+            this.isCustomBlock = true;
+            this.isPrototype = false;
+            this.semanticSpec = '';
+            this.initializeVariables(def.variableNames);
+        }
+        this.definition = def;
+        this.isGlobal = def.isGlobal;
+        this.refresh(def, -inputOffset);
+        this.fixLayout();
+        return;
+    }
+    if (this.isCustomBlock) {
+        // I am a customized primitive, revert to a plain primitive block
+        delete this.definition;
+        delete this.isCustomBlock;
+        delete this.isGlobal;
+        delete this.isPrototype;
+        delete this.variables;
+        Object.setPrototypeOf(
+            this,
+            Object.getPrototypeOf(
+                SpriteMorph.prototype.blockForSelector(aSelector)
+            )
+        );
+    }
     this.setCategory(info.category);
     this.selector = aSelector;
     this.setSpec(this.localizeBlockSpec(info.spec));
